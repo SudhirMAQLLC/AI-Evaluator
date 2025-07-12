@@ -27,7 +27,8 @@ async def upload_and_evaluate(
     google_api_key: Optional[str] = Form(None),
     use_codebert: bool = Form(True),
     use_openai: bool = Form(False),
-    use_gemini: bool = Form(False)
+    use_gemini: bool = Form(False),
+    
 ):
     """
     Upload a file for evaluation.
@@ -38,6 +39,7 @@ async def upload_and_evaluate(
     - **use_codebert**: Use CodeBERT for evaluation
     - **use_openai**: Use OpenAI for evaluation
     - **use_gemini**: Use Gemini for evaluation
+    
     """
     start_time = time.time()
     logger.info(f"Starting file upload: {file.filename}")
@@ -80,7 +82,8 @@ async def upload_and_evaluate(
             google_api_key=google_api_key,
             use_codebert=use_codebert,
             use_openai=use_openai,
-            use_gemini=use_gemini
+            use_gemini=use_gemini,
+    
         )
         
         process_time = time.time() - start_time

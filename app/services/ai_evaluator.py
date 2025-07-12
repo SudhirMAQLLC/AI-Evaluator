@@ -12,7 +12,6 @@ from datetime import datetime
 
 import openai
 import google.generativeai as genai
-from openai import AsyncOpenAI
 
 from app.config import settings
 from app.models import (
@@ -32,7 +31,8 @@ class AIEvaluator:
     
     def __init__(self):
         """Initialize AI evaluator with API clients."""
-        self.openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
+        # Configure OpenAI API key for v0.x SDK
+        openai.api_key = settings.openai_api_key
         genai.configure(api_key=settings.google_api_key)
         self.gemini_model = genai.GenerativeModel(settings.gemini_model)
         
@@ -159,87 +159,73 @@ CRITICAL: Respond with ONLY valid JSON. No markdown, no code blocks, no extra te
         use_openai: bool = False,
         use_gemini: bool = False
     ) -> Dict[str, ModelFeedback]:
-        """Evaluate a code cell using AI models with provided API keys."""
+        """Evaluate a code cell using selected AI models."""
+        feedback = {}
+        
         try:
-            tasks = []
-            feedback = {}
-            
-            # Add local model evaluations based on selection
+            # Enhanced Task-Specific Evaluator (CodeBERT + Enhanced)
             if use_codebert:
-                tasks.append(self._evaluate_with_enhanced(cell))
+                try:
+                    enhanced_feedback = await self._evaluate_with_enhanced(cell)
+                    feedback['enhanced'] = enhanced_feedback
+                except Exception as e:
+                    logger.error(f"Enhanced evaluation error: {e}")
+                    feedback['enhanced'] = self._create_error_feedback('enhanced', str(e))
             
-            # Add API model evaluations based on selection and API keys
-            if use_openai and openai_api_key:
-                tasks.append(self._evaluate_with_openai(cell, openai_api_key))
-            if use_gemini and google_api_key:
-                tasks.append(self._evaluate_with_gemini(cell, google_api_key))
-            
-            # If no models are selected, default to CodeBERT only
-            if not tasks:
-                logger.info("No models selected, using CodeBERT as default")
-                tasks.append(self._evaluate_with_codebert(cell))
-            
-            # Await async tasks
-            if tasks:
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-                
-                task_index = 0
-                
-                # Process Enhanced Evaluator result
-                if use_codebert:
-                    if isinstance(results[task_index], Exception):
-                        logger.error(f"Enhanced evaluation failed: {results[task_index]}")
-                        feedback["enhanced"] = self._create_error_feedback("Enhanced Evaluator", str(results[task_index]))
-                    else:
-                        feedback["enhanced"] = results[task_index]
-                    task_index += 1
-                
 
-                
-                # Process OpenAI result
-                if use_openai and openai_api_key:
-                    if isinstance(results[task_index], Exception):
-                        logger.error(f"OpenAI evaluation failed: {results[task_index]}")
-                        feedback["openai"] = self._create_error_feedback("OpenAI", str(results[task_index]))
-                    else:
-                        feedback["openai"] = results[task_index]
-                    task_index += 1
-                
-                # Process Gemini result
-                if use_gemini and google_api_key:
-                    if isinstance(results[task_index], Exception):
-                        logger.error(f"Gemini evaluation failed: {results[task_index]}")
-                        feedback["gemini"] = self._create_error_feedback("Gemini", str(results[task_index]))
-                    else:
-                        feedback["gemini"] = results[task_index]
-                    task_index += 1
+            # OpenAI GPT-4
+            if use_openai and openai_api_key:
+                try:
+                    openai_feedback = await self._evaluate_with_openai(cell, openai_api_key)
+                    feedback['openai'] = openai_feedback
+                except Exception as e:
+                    logger.error(f"OpenAI evaluation error: {e}")
+                    feedback['openai'] = self._create_error_feedback('openai', str(e))
             
-            return feedback
+            # Google Gemini
+            if use_gemini and google_api_key:
+                try:
+                    gemini_feedback = await self._evaluate_with_gemini(cell, google_api_key)
+                    feedback['gemini'] = gemini_feedback
+                except Exception as e:
+                    logger.error(f"Gemini evaluation error: {e}")
+                    feedback['gemini'] = self._create_error_feedback('gemini', str(e))
+            
+            # If no models selected, use enhanced by default
+            if not feedback:
+                try:
+                    enhanced_feedback = await self._evaluate_with_enhanced(cell)
+                    feedback['enhanced'] = enhanced_feedback
+                except Exception as e:
+                    logger.error(f"Default enhanced evaluation error: {e}")
+                    feedback['enhanced'] = self._create_error_feedback('enhanced', str(e))
+            
         except Exception as e:
-            logger.error(f"Evaluation error: {e}")
-            return {"error": self._create_error_feedback("Evaluation", str(e))}
+            logger.error(f"Evaluation failed: {e}")
+            feedback['error'] = self._create_error_feedback('system', str(e))
+        
+        return feedback
     
     async def _evaluate_with_openai(self, cell: CodeCell, api_key: str) -> ModelFeedback:
         """Evaluate code using OpenAI GPT-4 with provided API key."""
         try:
-            # Create client with provided API key
+            # Use OpenAI v0.x async API
             import openai
-            client = openai.AsyncOpenAI(api_key=api_key)
+            openai.api_key = api_key
             
             prompt = self.evaluation_prompt.format(
                 language=cell.language.value,
                 code=cell.code
             )
             
-            response = await client.chat.completions.create(
+            response = await openai.ChatCompletion.acreate(
                 model=settings.openai_model,
                 messages=[
                     {"role": "system", "content": "You are an expert code reviewer and evaluator. Analyze the code thoroughly and provide detailed feedback."},
                     {"role": "user", "content": prompt}
                 ],
                 max_tokens=settings.max_tokens,
-                temperature=settings.temperature,
-                timeout=settings.timeout
+                temperature=settings.temperature
             )
             
             content = response.choices[0].message.content
@@ -280,10 +266,14 @@ CRITICAL: Respond with ONLY valid JSON. No markdown, no code blocks, no extra te
     async def _evaluate_with_enhanced(self, cell: CodeCell) -> ModelFeedback:
         """Evaluate code using Enhanced Task-Specific Evaluator."""
         try:
-            return self.enhanced_evaluator.evaluate_code(cell.code, cell.language.value)
+            # Use the enhanced evaluator for comprehensive analysis
+            enhanced_result = await self.enhanced_evaluator.evaluate(cell)
+            return enhanced_result
         except Exception as e:
-            logger.error(f"Enhanced evaluation error: {e}")
-            return self._create_error_feedback("Enhanced Evaluator", str(e))
+            logger.error(f"Enhanced evaluation failed: {e}")
+            return self._create_error_feedback('enhanced', str(e))
+    
+
     
 
     

@@ -808,7 +808,6 @@ class CodeBERTEvaluator:
         # Readability feedback
         if metrics.readability < 7.0:
             feedback_parts.append("The code readability can be improved.")
-            suggestions.append("Use meaningful variable names and add comments to explain complex logic.")
         
         # Documentation feedback
         if metrics.documentation < 6.0:
@@ -932,7 +931,6 @@ class CodeBERTEvaluator:
         
         if metrics.readability < 7.0:
             feedback_parts.append("The code readability can be improved.")
-            suggestions.append("Use meaningful variable names and add comments to explain complex logic.")
         
         if metrics.documentation < 6.0:
             feedback_parts.append("The code lacks sufficient documentation.")

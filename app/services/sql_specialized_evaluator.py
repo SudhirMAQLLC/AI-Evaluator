@@ -110,44 +110,28 @@ class SQLSpecializedEvaluator:
         """Evaluate SQL code using specialized analysis."""
         try:
             logger.info(f"Starting specialized SQL evaluation")
-            
-            # Clean and normalize SQL
             clean_sql = self._normalize_sql(code)
-            
-            # Task-specific evaluations
-            security_analysis = self._evaluate_security(clean_sql)
-            correctness_analysis = self._evaluate_correctness(clean_sql)
-            efficiency_analysis = self._evaluate_efficiency(clean_sql)
-            best_practices_analysis = self._evaluate_best_practices(clean_sql)
-            
-            # Calculate comprehensive scores
-            scores = self._calculate_comprehensive_scores(
-                security_analysis, correctness_analysis, 
-                efficiency_analysis, best_practices_analysis
+            # --- Rule-based analysis ---
+            static_scores = self._static_sql_analysis(clean_sql)
+            # --- Model-based analysis (CodeBERT for now) ---
+            model_scores = self._model_based_sql_scoring(clean_sql)
+            # --- Aggregate scores ---
+            scores = ScoreBreakdown(
+                correctness=0.5 * static_scores['correctness'] + 0.5 * model_scores['correctness'],
+                scalability=0.5 * static_scores['efficiency'] + 0.5 * model_scores['efficiency'],
+                modularity=0.5 * static_scores['best_practices'] + 0.5 * model_scores['best_practices'],
+                readability=0.5 * static_scores['readability'] + 0.5 * model_scores['readability'],
+                security=0.5 * static_scores['security'] + 0.5 * model_scores['security']
             )
-            
-            # Generate detailed feedback
-            feedback, suggestions = self._generate_specialized_feedback(
-                security_analysis, correctness_analysis,
-                efficiency_analysis, best_practices_analysis, clean_sql
-            )
-            
-            # Calculate confidence
-            confidence = self._calculate_confidence(
-                security_analysis, correctness_analysis,
-                efficiency_analysis, best_practices_analysis
-            )
-            
-            logger.info(f"Specialized SQL evaluation completed. Security: {scores.security:.1f}, Correctness: {scores.correctness:.1f}")
-            
+            feedback = f"Correctness: {scores.correctness}, Efficiency: {scores.scalability}, Best Practices: {scores.modularity}, Readability: {scores.readability}, Security: {scores.security}"
+            suggestions = []
             return ModelFeedback(
-                model_name="SQL Specialized Evaluator",
+                model_name="Hybrid SQL Evaluator (Rule-based + CodeBERT)",
                 feedback=feedback,
                 suggestions=suggestions,
-                confidence=confidence,
+                confidence=0.9,
                 scores=scores
             )
-            
         except Exception as e:
             logger.error(f"Specialized SQL evaluation failed: {e}")
             return self._create_error_feedback(f"SQL evaluation failed: {e}")
@@ -452,3 +436,48 @@ class SQLSpecializedEvaluator:
             suggestions=["Please try again or contact support"],
             confidence=0.0
         ) 
+
+    def _static_sql_analysis(self, code: str) -> dict:
+        import sqlglot, sqlparse
+        try:
+            parsed = sqlglot.parse_one(code)
+        except Exception:
+            return {'correctness': 2.0, 'efficiency': 2.0, 'best_practices': 2.0, 'readability': 2.0, 'security': 2.0}
+        correctness = 10.0 if parsed else 2.0
+        efficiency = 10.0
+        if 'select *' in code.lower():
+            efficiency -= 3.0
+        if any(cmd in code.lower() for cmd in ['delete', 'update']) and 'where' not in code.lower():
+            efficiency -= 5.0
+        best_practices = 10.0
+        if not all([t.isidentifier() for t in parsed.find_all(sqlglot.exp.Table)]):
+            best_practices -= 2.0
+        formatted = sqlparse.format(code, reindent=True, keyword_case='upper')
+        readability = 10.0 if formatted.count('\n') > 1 else 6.0
+        security = 10.0
+        if 'or 1=1' in code.lower() or 'or true' in code.lower():
+            security -= 8.0
+        return {
+            'correctness': correctness,
+            'efficiency': efficiency,
+            'best_practices': best_practices,
+            'readability': readability,
+            'security': security
+        }
+    def _model_based_sql_scoring(self, code: str) -> dict:
+        # TODO: Integrate CodeT5+, StarCoder for each dimension
+        # For now, use CodeBERT via self._evaluate_with_codebert()
+        codebert_scores = self._evaluate_with_codebert(code)
+        return {
+            'correctness': codebert_scores.correctness,
+            'efficiency': codebert_scores.scalability,
+            'best_practices': codebert_scores.modularity,
+            'readability': codebert_scores.readability,
+            'security': codebert_scores.security
+        }
+    def _evaluate_with_codebert(self, code: str):
+        # Use the existing CodeBERTEvaluator for model-based scoring
+        from app.services.codebert_evaluator import CodeBERTEvaluator
+        evaluator = CodeBERTEvaluator()
+        feedback = evaluator.evaluate_code(code, 'sql')
+        return feedback.scores 

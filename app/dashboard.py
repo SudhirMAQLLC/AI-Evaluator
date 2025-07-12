@@ -80,6 +80,8 @@ def main():
             st.session_state.use_codebert = True
         st.session_state.use_codebert = st.checkbox("🧠 Enhanced Task-Specific Evaluator", value=st.session_state.use_codebert, help="Advanced evaluation using best tools for each task (Fast)")
         
+        
+        
         # API Models
         st.write("**API Models (Require API Keys):**")
         openai_key = st.text_input("OpenAI API Key", type="password", key="openai_api_key")
@@ -145,6 +147,7 @@ def upload_page():
             
             if st.session_state.use_codebert:
                 selected_models.append("🧠 Enhanced Task-Specific Evaluator")
+            
             if st.session_state.use_openai and st.session_state.openai_api_key:
                 selected_models.append("🤖 OpenAI GPT-4")
             if st.session_state.use_gemini and st.session_state.google_api_key:
@@ -173,6 +176,7 @@ def upload_page():
                         "openai_api_key": st.session_state.openai_api_key,
                         "google_api_key": st.session_state.google_api_key,
                         "use_codebert": st.session_state.use_codebert,
+                
                         "use_openai": st.session_state.use_openai,
                         "use_gemini": st.session_state.use_gemini
                     }
@@ -508,10 +512,11 @@ def display_file_details(file_data: Dict):
                         for model, feedback in local_feedback.items():
                             # Model icon mapping
                             model_icons = {
-                                'enhanced': '🧠'
+                                'enhanced': '🧠',
+                        
                             }
                             model_names = {
-                                'enhanced': 'Enhanced Task-Specific Evaluator'
+                                        'enhanced': 'Enhanced Task-Specific Evaluator (CodeBERT)'
                             }
                             
                             with st.expander(f"{model_icons.get(model, '🤖')} {model_names.get(model, model.title())} Feedback"):
@@ -700,9 +705,9 @@ def test_api_keys_sync(openai_key: str, google_key: str):
         if openai_key:
             try:
                 import openai
-                client = openai.OpenAI(api_key=openai_key)
+                openai.api_key = openai_key
                 # Simple test - just check if key is valid
-                response = client.chat.completions.create(
+                response = openai.ChatCompletion.create(
                     model="gpt-3.5-turbo",
                     messages=[{"role": "user", "content": "Hello"}],
                     max_tokens=5
