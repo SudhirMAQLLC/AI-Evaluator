@@ -1,0 +1,39 @@
+# Core dependencies
+fastapi
+uvicorn[standard]
+streamlit
+python-multipart
+python-dotenv
+pydantic
+pydantic-settings
+
+# AI and ML
+openai
+google-generativeai
+transformers
+torch
+
+# File processing
+python-pptx
+python-docx
+PyPDF2
+openpyxl
+pandas
+nbformat
+
+# Utilities
+aiofiles
+python-jose[cryptography]
+passlib[bcrypt]
+httpx
+plotly
+
+# SQL Analysis Tools
+sqlfluff
+semgrep
+
+# Development
+black
+flake8
+pytest
+pytest-asyncio 
