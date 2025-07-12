@@ -9,7 +9,8 @@ import logging
 import logging.handlers
 from pathlib import Path
 from typing import Optional
-from pydantic import BaseSettings, Field
+from pydantic_settings import BaseSettings
+from pydantic import Field
 
 class Settings(BaseSettings):
     """Application settings with environment variable support."""
@@ -54,9 +55,36 @@ class Settings(BaseSettings):
     evaluation_timeout: int = Field(default=300, env="EVALUATION_TIMEOUT")  # 5 minutes
     max_concurrent_evaluations: int = Field(default=5, env="MAX_CONCURRENT_EVALUATIONS")
     
+    google_api_key: str = Field(default="", env="GOOGLE_API_KEY")
+    openai_model: str = Field(default="gpt-4", env="OPENAI_MODEL")
+    gemini_model: str = Field(default="gemini-pro", env="GEMINI_MODEL")
+    max_tokens: int = Field(default=4000, env="MAX_TOKENS")
+    temperature: float = Field(default=0.3, env="TEMPERATURE")
+    timeout: int = Field(default=30, env="TIMEOUT")
+    redis_db: int = Field(default=0, env="REDIS_DB")
+    aws_access_key_id: str = Field(default="", env="AWS_ACCESS_KEY_ID")
+    aws_secret_access_key: str = Field(default="", env="AWS_SECRET_ACCESS_KEY")
+    s3_bucket: str = Field(default="", env="S3_BUCKET")
+    aws_region: str = Field(default="us-east-1", env="AWS_REGION")
+    celery_broker_url: str = Field(default="redis://localhost:6379/0", env="CELERY_BROKER_URL")
+    celery_result_backend: str = Field(default="redis://localhost:6379/0", env="CELERY_RESULT_BACKEND")
+    rate_limit_per_minute: int = Field(default=60, env="RATE_LIMIT_PER_MINUTE")
+    
+    evaluation_criteria: dict = {
+        "correctness": {"weight": 0.2, "description": "Code logic and syntax accuracy"},
+        "efficiency": {"weight": 0.15, "description": "Performance and resource usage"},
+        "readability": {"weight": 0.1, "description": "Code clarity and maintainability"},
+        "security": {"weight": 0.2, "description": "Vulnerabilities and best practices"},
+        "formatting": {"weight": 0.1, "description": "PEP8/SQLFluff/formatting compliance"},
+        "documentation": {"weight": 0.1, "description": "Docstrings and comments"},
+        "testing": {"weight": 0.1, "description": "Test coverage and assertions"},
+        "best_practices": {"weight": 0.05, "description": "General best practices"}
+    }
+    
     class Config:
         env_file = ".env"
         case_sensitive = False
+        extra = "ignore"  # Ignore extra fields in .env file
 
 # Global settings instance
 settings = Settings()

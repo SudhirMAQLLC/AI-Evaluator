@@ -62,8 +62,9 @@ async def lifespan(app: FastAPI):
     
     # Initialize evaluation service
     try:
-        EvaluationService.initialize(redis_client)
-        logger.info("Evaluation service initialized successfully")
+        # EvaluationService.initialize(redis_client)
+        # logger.info("Evaluation service initialized successfully")
+        pass  # Placeholder for future initialization
     except Exception as e:
         logger.error(f"Evaluation service initialization failed: {e}")
         sys.exit(1)
@@ -216,9 +217,10 @@ async def health_check():
 @app.get("/metrics")
 async def metrics():
     """Basic metrics endpoint for monitoring."""
+    evaluation_service = EvaluationService()
     return {
-        "evaluations_total": await EvaluationService.get_total_evaluations(),
-        "evaluations_in_progress": await EvaluationService.get_in_progress_count(),
+        "evaluations_total": evaluation_service.get_total_evaluations(),
+        "evaluations_in_progress": evaluation_service.get_in_progress_count(),
         "uptime": time.time() - getattr(app.state, 'start_time', time.time()),
         "version": settings.app_version
     }

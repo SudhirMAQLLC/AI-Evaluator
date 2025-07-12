@@ -88,7 +88,17 @@ class EvaluationService:
             
             # Parse files
             logger.info(f"Parsing files for evaluation {evaluation_id}")
-            notebook_files = parser.parse_zip_file(file_path)
+            
+            # Determine file type and parse accordingly
+            file_ext = Path(file_path).suffix.lower()
+            if file_ext == '.zip':
+                notebook_files = parser.parse_zip_file(file_path)
+            elif file_ext in ['.ipynb', '.py', '.sql', '.scala', '.r']:
+                # Parse single file
+                notebook_file = parser.supported_extensions[file_ext](file_path, Path(file_path).name)
+                notebook_files = [notebook_file] if notebook_file else []
+            else:
+                raise ValueError(f"Unsupported file type: {file_ext}")
             
             if not notebook_files:
                 raise ValueError("No valid files found in upload")
@@ -266,6 +276,14 @@ class EvaluationService:
         for eval_id in to_remove:
             del self.active_evaluations[eval_id]
             logger.info(f"Cleaned up old evaluation {eval_id}")
+    
+    def delete_evaluation(self, evaluation_id: str) -> bool:
+        """Delete an evaluation by ID."""
+        if evaluation_id in self.active_evaluations:
+            del self.active_evaluations[evaluation_id]
+            logger.info(f"Deleted evaluation {evaluation_id}")
+            return True
+        return False
     
     def get_statistics(self) -> Dict:
         """Get evaluation statistics."""

@@ -14,7 +14,7 @@ from fastapi import APIRouter, File, UploadFile, HTTPException, Form, Background
 from fastapi.responses import JSONResponse
 
 from app.config import get_logger, settings
-from app.services.evaluation_service import EvaluationService
+from app.services.evaluation_service import evaluation_service
 from app.services.notebook_parser import parser
 
 logger = get_logger(__name__)
@@ -73,7 +73,7 @@ async def upload_and_evaluate(
             raise HTTPException(status_code=400, detail="Invalid file content")
         
         # Start evaluation
-        evaluation_id = await EvaluationService.start_evaluation(
+        evaluation_id = await evaluation_service.start_evaluation(
             temp_file_path, 
             file.filename,
             openai_api_key=openai_api_key,
@@ -107,7 +107,7 @@ async def list_evaluations():
     logger.info("Listing evaluations")
     
     try:
-        evaluations = await EvaluationService.list_evaluations()
+        evaluations = evaluation_service.list_evaluations()
         logger.info(f"Retrieved {len(evaluations)} evaluations")
         return evaluations
     except Exception as e:
@@ -120,7 +120,7 @@ async def get_evaluation_status(evaluation_id: str):
     logger.info(f"Getting status for evaluation: {evaluation_id}")
     
     try:
-        status = await EvaluationService.get_evaluation_status(evaluation_id)
+        status = evaluation_service.get_evaluation_status(evaluation_id)
         if not status:
             logger.warning(f"Evaluation not found: {evaluation_id}")
             raise HTTPException(status_code=404, detail="Evaluation not found")
@@ -140,7 +140,7 @@ async def get_evaluation_results(evaluation_id: str):
     logger.info(f"Getting results for evaluation: {evaluation_id}")
     
     try:
-        evaluation = await EvaluationService.get_evaluation(evaluation_id)
+        evaluation = evaluation_service.get_evaluation(evaluation_id)
         if not evaluation:
             logger.warning(f"Evaluation not found: {evaluation_id}")
             raise HTTPException(status_code=404, detail="Evaluation not found")
@@ -153,7 +153,7 @@ async def get_evaluation_results(evaluation_id: str):
             )
         
         logger.info(f"Retrieved results for evaluation: {evaluation_id}")
-        return evaluation.to_dict()
+        return evaluation.model_dump()
         
     except HTTPException:
         raise
@@ -167,7 +167,7 @@ async def delete_evaluation(evaluation_id: str):
     logger.info(f"Deleting evaluation: {evaluation_id}")
     
     try:
-        success = await EvaluationService.delete_evaluation(evaluation_id)
+        success = evaluation_service.delete_evaluation(evaluation_id)
         if not success:
             logger.warning(f"Evaluation not found for deletion: {evaluation_id}")
             raise HTTPException(status_code=404, detail="Evaluation not found")
@@ -187,7 +187,7 @@ async def cleanup_old_evaluations(background_tasks: BackgroundTasks):
     logger.info("Starting cleanup of old evaluations")
     
     try:
-        background_tasks.add_task(EvaluationService.cleanup_old_evaluations)
+        background_tasks.add_task(evaluation_service.cleanup_old_evaluations)
         logger.info("Cleanup task started")
         return {"message": "Cleanup task started"}
         
