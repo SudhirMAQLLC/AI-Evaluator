@@ -109,6 +109,8 @@ start_app() {
     # Set production environment
     export ENVIRONMENT=production
     
+
+    
     # Start the application
     print_status "Starting FastAPI server..."
     nohup python -m uvicorn app.main:app \

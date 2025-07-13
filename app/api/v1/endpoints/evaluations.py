@@ -9,6 +9,7 @@ import tempfile
 import time
 from pathlib import Path
 from typing import List, Optional
+import uuid
 
 from fastapi import APIRouter, File, UploadFile, HTTPException, Form, BackgroundTasks
 from fastapi.responses import JSONResponse
@@ -16,93 +17,71 @@ from fastapi.responses import JSONResponse
 from app.config import get_logger, settings
 from app.services.evaluation_service import evaluation_service
 from app.services.notebook_parser import parser
+from app.models import EvaluationResponse
 
 logger = get_logger(__name__)
 router = APIRouter()
 
-@router.post("/evaluate")
-async def upload_and_evaluate(
+@router.post("/evaluate", response_model=EvaluationResponse)
+async def evaluate_code(
     file: UploadFile = File(...),
     openai_api_key: Optional[str] = Form(None),
     google_api_key: Optional[str] = Form(None),
+    grok_api_key: Optional[str] = Form(None),
     use_codebert: bool = Form(True),
+    use_sqlcoder: bool = Form(False),
     use_openai: bool = Form(False),
     use_gemini: bool = Form(False),
-    
+    use_grok: bool = Form(False)
 ):
-    """
-    Upload a file for evaluation.
-    
-    - **file**: File to evaluate (.ipynb, .py, .sql, or .zip)
-    - **openai_api_key**: OpenAI API key for GPT evaluation
-    - **google_api_key**: Google API key for Gemini evaluation
-    - **use_codebert**: Use CodeBERT for evaluation
-    - **use_openai**: Use OpenAI for evaluation
-    - **use_gemini**: Use Gemini for evaluation
-    
-    """
-    start_time = time.time()
-    logger.info(f"Starting file upload: {file.filename}")
-    
+    """Evaluate uploaded code files using selected AI models."""
     try:
         # Validate file
         if not file.filename:
-            raise HTTPException(status_code=400, detail="No filename provided")
-        
-        file_ext = Path(file.filename).suffix.lower()
-        if file_ext not in settings.allowed_extensions:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Unsupported file type: {file_ext}. Allowed: {settings.allowed_extensions}"
-            )
+            raise HTTPException(status_code=400, detail="No file provided")
         
         # Check file size
         if file.size and file.size > settings.max_file_size:
             raise HTTPException(
                 status_code=413, 
-                detail=f"File too large: {file.size} bytes. Maximum: {settings.max_file_size} bytes."
+                detail=f"File too large. Maximum size is {settings.max_file_size} bytes"
             )
         
-        # Save file to temporary location
-        with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as temp_file:
-            content = await file.read()
-            temp_file.write(content)
-            temp_file_path = temp_file.name
+        # Save uploaded file
+        file_path = f"uploads/{uuid.uuid4()}_{file.filename}"
+        os.makedirs("uploads", exist_ok=True)
         
-        # Validate file content
-        if not parser.validate_file(temp_file_path):
-            os.unlink(temp_file_path)
-            raise HTTPException(status_code=400, detail="Invalid file content")
+        with open(file_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
         
         # Start evaluation
         evaluation_id = await evaluation_service.start_evaluation(
-            temp_file_path, 
-            file.filename,
+            file_path=file_path,
+            filename=file.filename,
             openai_api_key=openai_api_key,
             google_api_key=google_api_key,
+            grok_api_key=grok_api_key,
             use_codebert=use_codebert,
+            use_sqlcoder=use_sqlcoder,
             use_openai=use_openai,
             use_gemini=use_gemini,
-    
+            use_grok=use_grok
         )
         
-        process_time = time.time() - start_time
-        logger.info(f"File upload completed: {file.filename} - Evaluation ID: {evaluation_id} - Time: {process_time:.3f}s")
+        logger.info(f"Started evaluation {evaluation_id} for {file.filename}")
         
-        return {
-            "evaluation_id": evaluation_id,
-            "filename": file.filename,
-            "file_size": file.size or 0,
-            "message": "File uploaded and evaluation started successfully",
-            "status": "pending",
-            "process_time": process_time
-        }
+        return EvaluationResponse(
+            evaluation_id=evaluation_id,
+            filename=file.filename,
+            file_size=len(content),
+            message="File uploaded and evaluation started successfully",
+            status="pending"
+        )
         
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"File upload failed: {file.filename} - Error: {e}")
-        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+        logger.error(f"Evaluation request failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Evaluation failed: {str(e)}")
 
 @router.get("/")
 async def list_evaluations():

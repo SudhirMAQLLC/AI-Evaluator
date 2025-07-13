@@ -47,6 +47,8 @@ source venv/bin/activate
 echo "📦 Installing dependencies..."
 pip install -r requirements.txt
 
+
+
 # Run tests
 echo "🧪 Running tests..."
 python test_app.py

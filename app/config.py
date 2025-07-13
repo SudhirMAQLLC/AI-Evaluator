@@ -55,9 +55,12 @@ class Settings(BaseSettings):
     evaluation_timeout: int = Field(default=300, env="EVALUATION_TIMEOUT")  # 5 minutes
     max_concurrent_evaluations: int = Field(default=5, env="MAX_CONCURRENT_EVALUATIONS")
     
+    # API settings
     google_api_key: str = Field(default="", env="GOOGLE_API_KEY")
     openai_model: str = Field(default="gpt-4", env="OPENAI_MODEL")
     gemini_model: str = Field(default="gemini-pro", env="GEMINI_MODEL")
+    grok_api_key: str = Field(default="", env="GROK_API_KEY")
+    grok_model: str = Field(default="grok-2", env="GROK_MODEL")
     max_tokens: int = Field(default=4000, env="MAX_TOKENS")
     temperature: float = Field(default=0.3, env="TEMPERATURE")
     timeout: int = Field(default=30, env="TIMEOUT")
@@ -69,6 +72,10 @@ class Settings(BaseSettings):
     celery_broker_url: str = Field(default="redis://localhost:6379/0", env="CELERY_BROKER_URL")
     celery_result_backend: str = Field(default="redis://localhost:6379/0", env="CELERY_RESULT_BACKEND")
     rate_limit_per_minute: int = Field(default=60, env="RATE_LIMIT_PER_MINUTE")
+    
+    # Fallback settings
+    auto_fallback_to_local: bool = Field(default=True, env="AUTO_FALLBACK_TO_LOCAL")
+    fallback_models: list = Field(default=["enhanced", "sqlcoder"], env="FALLBACK_MODELS")
     
     evaluation_criteria: dict = {
         "correctness": {"weight": 0.2, "description": "Code logic and syntax accuracy"},

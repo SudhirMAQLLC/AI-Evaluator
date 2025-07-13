@@ -96,12 +96,16 @@ class EvaluationRequest(BaseModel):
     # Results
     files: Optional[List[NotebookFile]] = None
     project_score: Optional[float] = None
+    total_files: int = 0
     total_cells: int = 0
     processed_cells: int = 0
+    overall_score: Optional[float] = None
+    scores: Optional[ScoreBreakdown] = None
     
     # Metadata
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+    started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     error_message: Optional[str] = None
 
@@ -109,8 +113,10 @@ class EvaluationRequest(BaseModel):
 class EvaluationResponse(BaseModel):
     """Response for evaluation request."""
     evaluation_id: str
-    status: EvaluationStatus
+    filename: str
+    file_size: int
     message: str
+    status: str
     progress: float = 0.0
     estimated_completion: Optional[datetime] = None
 

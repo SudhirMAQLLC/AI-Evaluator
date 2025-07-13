@@ -1,7 +1,7 @@
 """
 AI Evaluator Service
 
-Handles code evaluation using multiple AI models (OpenAI GPT-4 and Google Gemini).
+Handles code evaluation using multiple AI models (OpenAI GPT-4, Google Gemini, and Grok).
 """
 
 import asyncio
@@ -12,6 +12,7 @@ from datetime import datetime
 
 import openai
 import google.generativeai as genai
+import requests
 
 from app.config import settings
 from app.models import (
@@ -22,6 +23,7 @@ from app.models import (
 )
 from app.services.codebert_evaluator import CodeBERTEvaluator
 from app.services.enhanced_evaluator import EnhancedEvaluator
+from app.services.sqlcoder_evaluator import SQLCoderEvaluator
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +41,11 @@ class AIEvaluator:
         # Initialize evaluators
         self.codebert_evaluator = CodeBERTEvaluator()
         self.enhanced_evaluator = EnhancedEvaluator()
+        # Use singleton for SQLCoderEvaluator
+        from app.services.sqlcoder_evaluator import SQLCoderEvaluator
+        self.sqlcoder_evaluator = SQLCoderEvaluator()
         
-        logger.info("AI Evaluator initialized with CodeBERT and Enhanced Task-Specific Evaluator")
+        logger.info("AI Evaluator initialized with CodeBERT, Enhanced Task-Specific Evaluator, SQLCoder, and Grok support")
         
         # Evaluation criteria and weights
         self.criteria = settings.evaluation_criteria
@@ -147,7 +152,7 @@ Language: {language}
 Code:
 {code}
 
-CRITICAL: Respond with ONLY valid JSON. No markdown, no code blocks, no extra text. Start with { and end with }. All scores must be numbers 1-10.
+CRITICAL: Respond with ONLY valid JSON. No markdown, no code blocks, no extra text. Start with {{ and end with }}. All scores must be numbers 1-10. Do not include any formatting characters like \\n or \\t in the JSON.
 """
     
     async def evaluate_code_cell(
@@ -155,62 +160,138 @@ CRITICAL: Respond with ONLY valid JSON. No markdown, no code blocks, no extra te
         cell: CodeCell, 
         openai_api_key: Optional[str] = None, 
         google_api_key: Optional[str] = None,
+        grok_api_key: Optional[str] = None,
         use_codebert: bool = True,
+        use_sqlcoder: bool = False,
         use_openai: bool = False,
-        use_gemini: bool = False
+        use_gemini: bool = False,
+        use_grok: bool = False
     ) -> Dict[str, ModelFeedback]:
-        """Evaluate a code cell using selected AI models."""
-        feedback = {}
+        """Evaluate a code cell using selected AI models with parallel execution."""
+        import threading
+        import time
+        import asyncio
         
-        try:
-            # Enhanced Task-Specific Evaluator (CodeBERT + Enhanced)
-            if use_codebert:
-                try:
-                    enhanced_feedback = await self._evaluate_with_enhanced(cell)
-                    feedback['enhanced'] = enhanced_feedback
-                except Exception as e:
-                    logger.error(f"Enhanced evaluation error: {e}")
-                    feedback['enhanced'] = self._create_error_feedback('enhanced', str(e))
-            
-
-            # OpenAI GPT-4
-            if use_openai and openai_api_key:
-                try:
-                    openai_feedback = await self._evaluate_with_openai(cell, openai_api_key)
-                    feedback['openai'] = openai_feedback
-                except Exception as e:
-                    logger.error(f"OpenAI evaluation error: {e}")
-                    feedback['openai'] = self._create_error_feedback('openai', str(e))
-            
-            # Google Gemini
-            if use_gemini and google_api_key:
-                try:
-                    gemini_feedback = await self._evaluate_with_gemini(cell, google_api_key)
-                    feedback['gemini'] = gemini_feedback
-                except Exception as e:
-                    logger.error(f"Gemini evaluation error: {e}")
-                    feedback['gemini'] = self._create_error_feedback('gemini', str(e))
-            
-            # If no models selected, use enhanced by default
-            if not feedback:
-                try:
-                    enhanced_feedback = await self._evaluate_with_enhanced(cell)
-                    feedback['enhanced'] = enhanced_feedback
-                except Exception as e:
-                    logger.error(f"Default enhanced evaluation error: {e}")
-                    feedback['enhanced'] = self._create_error_feedback('enhanced', str(e))
-            
-        except Exception as e:
-            logger.error(f"Evaluation failed: {e}")
-            feedback['error'] = self._create_error_feedback('system', str(e))
+        start_time = time.time()
+        logger.info(f"Starting parallel evaluation with models: CodeBERT={use_codebert}, SQLCoder={use_sqlcoder}, OpenAI={use_openai}, Gemini={use_gemini}, Grok={use_grok}")
         
-        return feedback
+        # Thread-safe dictionary for results
+        model_scores = {}
+        
+        # Define evaluation functions for threading
+        def run_enhanced_evaluation():
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                result = loop.run_until_complete(self._evaluate_with_enhanced(cell))
+                model_scores['enhanced'] = result
+                logger.info("Enhanced evaluation completed")
+            except Exception as e:
+                logger.error(f"Enhanced evaluation error: {e}")
+                model_scores['enhanced'] = self._create_error_feedback('enhanced', str(e))
+        
+        def run_sqlcoder_evaluation():
+            try:
+                # Lazy load SQLCoderEvaluator only when needed
+                sqlcoder_evaluator = SQLCoderEvaluator()
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                result = loop.run_until_complete(sqlcoder_evaluator.evaluate(cell))
+                model_scores['sqlcoder'] = result
+                del sqlcoder_evaluator  # Release memory
+                logger.info("SQLCoder evaluation completed")
+            except Exception as e:
+                logger.error(f"SQLCoder evaluation error: {e}")
+                model_scores['sqlcoder'] = self._create_error_feedback('sqlcoder', str(e))
+        
+        def run_openai_evaluation():
+            try:
+                if not openai_api_key:
+                    model_scores['openai'] = self._create_error_feedback('OpenAI GPT-4', "No API key provided")
+                    return
+                
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                result = loop.run_until_complete(self._evaluate_with_openai(cell, openai_api_key))
+                model_scores['openai'] = result
+                logger.info("OpenAI evaluation completed")
+            except Exception as e:
+                logger.error(f"OpenAI evaluation error: {e}")
+                model_scores['openai'] = self._create_error_feedback('OpenAI GPT-4', str(e))
+        
+        def run_gemini_evaluation():
+            try:
+                if not google_api_key:
+                    model_scores['gemini'] = self._create_error_feedback('Google Gemini', "No API key provided")
+                    return
+                
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                result = loop.run_until_complete(self._evaluate_with_gemini(cell, google_api_key))
+                model_scores['gemini'] = result
+                logger.info("Gemini evaluation completed")
+            except Exception as e:
+                logger.error(f"Gemini evaluation error: {e}")
+                model_scores['gemini'] = self._create_error_feedback('Google Gemini', str(e))
+        
+        def run_grok_evaluation():
+            try:
+                if not grok_api_key:
+                    model_scores['grok'] = self._create_error_feedback('Grok', "No API key provided")
+                    return
+                
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                result = loop.run_until_complete(self._evaluate_with_grok(cell, grok_api_key))
+                model_scores['grok'] = result
+                logger.info("Grok evaluation completed")
+            except Exception as e:
+                logger.error(f"Grok evaluation error: {e}")
+                model_scores['grok'] = self._create_error_feedback('Grok', str(e))
+        
+        # Start evaluation threads based on selected models
+        threads = []
+        
+        if use_codebert:
+            thread = threading.Thread(target=run_enhanced_evaluation)
+            threads.append(thread)
+            thread.start()
+        
+        if use_sqlcoder:
+            thread = threading.Thread(target=run_sqlcoder_evaluation)
+            threads.append(thread)
+            thread.start()
+        
+        if use_openai:
+            thread = threading.Thread(target=run_openai_evaluation)
+            threads.append(thread)
+            thread.start()
+        
+        if use_gemini:
+            thread = threading.Thread(target=run_gemini_evaluation)
+            threads.append(thread)
+            thread.start()
+        
+        if use_grok:
+            thread = threading.Thread(target=run_grok_evaluation)
+            threads.append(thread)
+            thread.start()
+        
+        # Wait for all threads to complete
+        for thread in threads:
+            thread.join()
+        
+        evaluation_time = time.time() - start_time
+        logger.info(f"Parallel evaluation completed in {evaluation_time:.2f} seconds")
+        
+        return model_scores
     
     async def _evaluate_with_openai(self, cell: CodeCell, api_key: str) -> ModelFeedback:
         """Evaluate code using OpenAI GPT-4 with provided API key."""
         try:
             # Use OpenAI v0.x async API
             import openai
+            
             openai.api_key = api_key
             
             prompt = self.evaluation_prompt.format(
@@ -231,6 +312,28 @@ CRITICAL: Respond with ONLY valid JSON. No markdown, no code blocks, no extra te
             content = response.choices[0].message.content
             return self._parse_ai_response(content, "OpenAI GPT-4")
             
+        except openai.error.RateLimitError as e:
+            logger.warning(f"OpenAI API rate limit exceeded: {e}")
+            return self._create_error_feedback(
+                "OpenAI GPT-4", 
+                "API rate limit exceeded. Please try again later or upgrade your plan. Using fallback evaluation."
+            )
+            
+        except openai.error.QuotaExceededError as e:
+            logger.warning(f"OpenAI API quota exceeded: {e}")
+            return self._create_error_feedback(
+                "OpenAI GPT-4", 
+                "API quota exceeded. Please upgrade your plan or try again later. Using fallback evaluation."
+            )
+            
+        except openai.error.AuthenticationError as e:
+            logger.error(f"OpenAI API authentication failed: {e}")
+            return self._create_error_feedback("OpenAI GPT-4", f"Authentication failed: {e}")
+            
+        except openai.error.InvalidRequestError as e:
+            logger.error(f"OpenAI API invalid request: {e}")
+            return self._create_error_feedback("OpenAI GPT-4", f"Invalid request: {e}")
+            
         except Exception as e:
             logger.error(f"OpenAI evaluation error: {e}")
             return self._create_error_feedback("OpenAI GPT-4", str(e))
@@ -240,6 +343,8 @@ CRITICAL: Respond with ONLY valid JSON. No markdown, no code blocks, no extra te
         try:
             # Create model with provided API key
             import google.generativeai as genai
+            from google.api_core import exceptions as google_exceptions
+            
             genai.configure(api_key=api_key)
             model = genai.GenerativeModel(settings.gemini_model)
             
@@ -259,6 +364,27 @@ CRITICAL: Respond with ONLY valid JSON. No markdown, no code blocks, no extra te
             content = response.text
             return self._parse_ai_response(content, "Google Gemini")
             
+        except google_exceptions.ResourceExhausted as e:
+            # Handle quota exceeded errors
+            error_msg = str(e)
+            if "quota" in error_msg.lower() or "429" in error_msg:
+                logger.warning(f"Google API quota exceeded: {error_msg}")
+                return self._create_error_feedback(
+                    "Google Gemini", 
+                    "API quota exceeded. Please upgrade your plan or try again later. Using fallback evaluation."
+                )
+            else:
+                logger.error(f"Google API resource exhausted: {error_msg}")
+                return self._create_error_feedback("Google Gemini", f"Resource exhausted: {error_msg}")
+                
+        except google_exceptions.PermissionDenied as e:
+            logger.error(f"Google API permission denied: {e}")
+            return self._create_error_feedback("Google Gemini", f"Permission denied: {e}")
+            
+        except google_exceptions.InvalidArgument as e:
+            logger.error(f"Google API invalid argument: {e}")
+            return self._create_error_feedback("Google Gemini", f"Invalid argument: {e}")
+            
         except Exception as e:
             logger.error(f"Gemini evaluation error: {e}")
             return self._create_error_feedback("Google Gemini", str(e))
@@ -272,6 +398,62 @@ CRITICAL: Respond with ONLY valid JSON. No markdown, no code blocks, no extra te
         except Exception as e:
             logger.error(f"Enhanced evaluation failed: {e}")
             return self._create_error_feedback('enhanced', str(e))
+    
+    async def _evaluate_with_grok(self, cell: CodeCell, api_key: str) -> ModelFeedback:
+        """Evaluate code using Grok API with provided API key."""
+        try:
+            # Use Grok API (powered by Anthropic)
+            from anthropic import Anthropic
+            
+            # Initialize client with proxy handling
+            try:
+                client = Anthropic(api_key=api_key)
+            except TypeError as e:
+                if "proxies" in str(e):
+                    # Handle proxies argument issue
+                    import os
+                    # Temporarily remove any proxy environment variables
+                    old_proxy_vars = {}
+                    for var in ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy']:
+                        if var in os.environ:
+                            old_proxy_vars[var] = os.environ[var]
+                            del os.environ[var]
+                    
+                    try:
+                        client = Anthropic(api_key=api_key)
+                    finally:
+                        # Restore proxy environment variables
+                        for var, value in old_proxy_vars.items():
+                            os.environ[var] = value
+                else:
+                    raise e
+            
+            prompt = self.evaluation_prompt.format(
+                language=cell.language.value,
+                code=cell.code
+            )
+            
+            response = client.messages.create(
+                model="claude-3-5-sonnet-20241022",  # Use Claude model for Grok-like evaluation
+                max_tokens=settings.max_tokens,
+                temperature=settings.temperature,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ]
+            )
+            
+            content = response.content[0].text
+            
+            return self._parse_ai_response(content, "Grok")
+            
+        except Exception as e:
+            logger.error(f"Grok evaluation error: {e}")
+            return self._create_error_feedback("Grok", str(e))
+    
+
     
 
     
@@ -308,9 +490,13 @@ CRITICAL: Respond with ONLY valid JSON. No markdown, no code blocks, no extra te
                 json_str = json_str.replace('\n', ' ').replace('\r', ' ')
                 json_str = ' '.join(json_str.split())  # Normalize whitespace
                 
-                # Try to fix malformed JSON that starts with newlines
-                if json_str.startswith('\\n'):
-                    json_str = json_str.replace('\\n', '')
+                # Try to fix malformed JSON that starts with newlines or has escaped newlines
+                json_str = json_str.replace('\\n', '')
+                json_str = json_str.replace('\\t', '')
+                json_str = json_str.replace('\\r', '')
+                
+                # Remove any leading/trailing whitespace and quotes
+                json_str = json_str.strip().strip('"').strip("'")
                 
                 logger.info(f"Cleaned JSON: {repr(json_str[:200])}")
                 data = json.loads(json_str)
@@ -398,11 +584,48 @@ CRITICAL: Respond with ONLY valid JSON. No markdown, no code blocks, no extra te
     
     def _create_error_feedback(self, model_name: str, error_message: str) -> ModelFeedback:
         """Create error feedback when evaluation fails."""
+        # Create default scores for error cases
+        default_scores = ScoreBreakdown(
+            correctness=5.0,
+            efficiency=5.0,
+            readability=5.0,
+            scalability=5.0,
+            security=5.0,
+            modularity=5.0,
+            documentation=5.0,
+            best_practices=5.0,
+            error_handling=5.0
+        )
+        
+        # Provide specific suggestions based on error type
+        if "quota" in error_message.lower() or "rate limit" in error_message.lower():
+            suggestions = [
+                "Upgrade your API plan to increase quota limits",
+                "Wait for quota reset and try again later",
+                "Use local models (Enhanced Evaluator) as fallback",
+                "Contact API provider for quota increase"
+            ]
+        elif "authentication" in error_message.lower():
+            suggestions = [
+                "Check your API key configuration",
+                "Verify API key is valid and active",
+                "Ensure API key has proper permissions",
+                "Use local models as alternative"
+            ]
+        else:
+            suggestions = [
+                "Try using local models (Enhanced Evaluator)",
+                "Check your internet connection",
+                "Verify API service is available",
+                "Contact support if issue persists"
+            ]
+        
         return ModelFeedback(
             model_name=model_name,
             feedback=f"Evaluation failed: {error_message}",
-            suggestions=["Please try again or contact support"],
-            confidence=0.0
+            suggestions=suggestions,
+            confidence=0.0,
+            scores=default_scores
         )
     
 

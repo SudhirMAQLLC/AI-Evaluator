@@ -41,9 +41,12 @@ class EvaluationService:
         filename: str,
         openai_api_key: Optional[str] = None,
         google_api_key: Optional[str] = None,
+        grok_api_key: Optional[str] = None,
         use_codebert: bool = True,
+        use_sqlcoder: bool = False,
         use_openai: bool = False,
-        use_gemini: bool = False
+        use_gemini: bool = False,
+        use_grok: bool = False
     ) -> str:
         """Start a new evaluation process."""
         evaluation_id = str(uuid.uuid4())
@@ -61,8 +64,8 @@ class EvaluationService:
         
         # Start background evaluation with API keys and model selection
         asyncio.create_task(self._evaluate_file(
-            evaluation_id, file_path, openai_api_key, google_api_key,
-            use_codebert, use_openai, use_gemini
+            evaluation_id, file_path, openai_api_key, google_api_key, grok_api_key,
+            use_codebert, use_sqlcoder, use_openai, use_gemini, use_grok
         ))
         
         logger.info(f"Started evaluation {evaluation_id} for {filename}")
@@ -74,9 +77,12 @@ class EvaluationService:
         file_path: str, 
         openai_api_key: Optional[str] = None, 
         google_api_key: Optional[str] = None,
+        grok_api_key: Optional[str] = None,
         use_codebert: bool = True,
+        use_sqlcoder: bool = False,
         use_openai: bool = False,
-        use_gemini: bool = False
+        use_gemini: bool = False,
+        use_grok: bool = False
     ):
         """Background evaluation process."""
         evaluation = self.active_evaluations[evaluation_id]
@@ -84,25 +90,11 @@ class EvaluationService:
         try:
             # Update status to processing
             evaluation.status = EvaluationStatus.PROCESSING
-            evaluation.updated_at = datetime.utcnow()
+            evaluation.started_at = datetime.utcnow()
             
-            # Parse files
-            logger.info(f"Parsing files for evaluation {evaluation_id}")
-            
-            # Determine file type and parse accordingly
-            file_ext = Path(file_path).suffix.lower()
-            if file_ext == '.zip':
-                notebook_files = parser.parse_zip_file(file_path)
-            elif file_ext in ['.ipynb', '.py', '.sql', '.scala', '.r']:
-                # Parse single file
-                notebook_file = parser.supported_extensions[file_ext](file_path, Path(file_path).name)
-                notebook_files = [notebook_file] if notebook_file else []
-            else:
-                raise ValueError(f"Unsupported file type: {file_ext}")
-            
-            if not notebook_files:
-                raise ValueError("No valid files found in upload")
-            
+            # Parse notebook files
+            notebook_files = parser.parse_file(file_path)
+            evaluation.total_files = len(notebook_files)
             evaluation.total_cells = sum(len(f.cells) for f in notebook_files)
             evaluation.progress = 10.0
             
@@ -123,9 +115,12 @@ class EvaluationService:
                             cell, 
                             openai_api_key, 
                             google_api_key,
+                            grok_api_key,
                             use_codebert=use_codebert,
+                            use_sqlcoder=use_sqlcoder,
                             use_openai=use_openai,
-                            use_gemini=use_gemini
+                            use_gemini=use_gemini,
+                            use_grok=use_grok
                         )
                         
                         # Calculate scores
@@ -144,38 +139,89 @@ class EvaluationService:
                         # Update progress
                         processed_cells += 1
                         evaluation.processed_cells = processed_cells
-                        evaluation.progress = 10.0 + (80.0 * processed_cells / total_cells)
-                        
-                        logger.debug(f"Evaluated cell {cell.cell_id} in {notebook_file.filename}")
+                        evaluation.progress = 10.0 + (processed_cells / total_cells) * 80.0
                         
                     except Exception as e:
-                        logger.error(f"Failed to evaluate cell {cell.cell_id}: {e}")
-                        # Continue with other cells
-                        evaluated_cells.append(cell)
+                        logger.error(f"Error evaluating cell: {e}")
+                        # Create error cell
+                        error_cell = cell
+                        error_cell.scores = ScoreBreakdown(
+                            correctness=0.0, efficiency=0.0, readability=0.0,
+                            scalability=0.0, security=0.0, modularity=0.0,
+                            documentation=0.0, best_practices=0.0, error_handling=0.0
+                        )
+                        error_cell.overall_score = 0.0
+                        error_cell.feedback = {"error": f"Evaluation failed: {e}"}
+                        error_cell.suggestions = ["Please try again or contact support"]
+                        error_cell.issues = ["Evaluation error occurred"]
+                        error_cell.updated_at = datetime.utcnow()
+                        evaluated_cells.append(error_cell)
+                        
+                        processed_cells += 1
+                        evaluation.processed_cells = processed_cells
+                        evaluation.progress = 10.0 + (processed_cells / total_cells) * 80.0
                 
                 # Calculate file-level scores
-                notebook_file.cells = evaluated_cells
-                notebook_file.overall_score = self._calculate_file_score(evaluated_cells)
-                notebook_file.score_breakdown = self._calculate_file_breakdown(evaluated_cells)
-                notebook_file.updated_at = datetime.utcnow()
+                file_score = self._calculate_file_score(evaluated_cells)
+                file_breakdown = self._calculate_file_breakdown(evaluated_cells)
                 
+                # Update notebook file with evaluated cells and scores
+                notebook_file.cells = evaluated_cells
+                notebook_file.overall_score = file_score
+                notebook_file.score_breakdown = file_breakdown
                 evaluated_files.append(notebook_file)
             
-            # Calculate project-level scores
+            # Calculate final scores
+            all_scores = []
+            for file in evaluated_files:
+                for cell in file.cells:
+                    if hasattr(cell, 'scores') and cell.scores:
+                        all_scores.append(cell.scores)
+            
+            if all_scores:
+                # Calculate average scores across all cells
+                avg_scores = ScoreBreakdown(
+                    correctness=sum(s.correctness for s in all_scores) / len(all_scores),
+                    efficiency=sum(s.efficiency for s in all_scores) / len(all_scores),
+                    readability=sum(s.readability for s in all_scores) / len(all_scores),
+                    scalability=sum(s.scalability for s in all_scores) / len(all_scores),
+                    security=sum(s.security for s in all_scores) / len(all_scores),
+                    modularity=sum(s.modularity for s in all_scores) / len(all_scores),
+                    documentation=sum(s.documentation for s in all_scores) / len(all_scores),
+                    best_practices=sum(s.best_practices for s in all_scores) / len(all_scores),
+                    error_handling=sum(s.error_handling for s in all_scores) / len(all_scores)
+                )
+                
+                evaluation.overall_score = sum([
+                    avg_scores.correctness, avg_scores.efficiency, avg_scores.readability,
+                    avg_scores.scalability, avg_scores.security, avg_scores.modularity,
+                    avg_scores.documentation, avg_scores.best_practices, avg_scores.error_handling
+                ]) / 9.0
+                
+                evaluation.project_score = evaluation.overall_score
+                evaluation.scores = avg_scores
+            else:
+                evaluation.overall_score = 0.0
+                evaluation.project_score = 0.0
+                evaluation.scores = ScoreBreakdown(
+                    correctness=0.0, efficiency=0.0, readability=0.0,
+                    scalability=0.0, security=0.0, modularity=0.0,
+                    documentation=0.0, best_practices=0.0, error_handling=0.0
+                )
+            
+            # Update evaluation with results
             evaluation.files = evaluated_files
-            evaluation.project_score = self._calculate_project_score(evaluated_files)
-            evaluation.progress = 100.0
             evaluation.status = EvaluationStatus.COMPLETED
             evaluation.completed_at = datetime.utcnow()
-            evaluation.updated_at = datetime.utcnow()
+            evaluation.progress = 100.0
             
             logger.info(f"Completed evaluation {evaluation_id}")
             
         except Exception as e:
-            logger.error(f"Evaluation {evaluation_id} failed: {e}")
+            logger.error(f"Evaluation failed for {evaluation_id}: {e}")
             evaluation.status = EvaluationStatus.FAILED
             evaluation.error_message = str(e)
-            evaluation.updated_at = datetime.utcnow()
+            evaluation.completed_at = datetime.utcnow()
     
     def _calculate_file_score(self, cells: List[CodeCell]) -> float:
         """Calculate overall score for a file."""

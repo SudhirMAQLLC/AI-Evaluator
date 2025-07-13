@@ -190,4 +190,7 @@ Thumbs.db
 
 # Temporary files
 tmp/
-temp/ 
+temp/
+
+# Model cache (large files)
+model_cache/ 

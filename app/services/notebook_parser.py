@@ -34,6 +34,20 @@ class NotebookParser:
             '.r': self._parse_r_file
         }
     
+    def parse_file(self, file_path: str) -> List[NotebookFile]:
+        """Parse a single file or ZIP archive containing multiple files."""
+        file_ext = Path(file_path).suffix.lower()
+        
+        if file_ext == '.zip':
+            return self.parse_zip_file(file_path)
+        elif file_ext in self.supported_extensions:
+            # Parse single file
+            notebook_file = self.supported_extensions[file_ext](file_path, Path(file_path).name)
+            return [notebook_file] if notebook_file else []
+        else:
+            logger.warning(f"Unsupported file type: {file_ext}")
+            return []
+    
     def parse_zip_file(self, zip_path: str) -> List[NotebookFile]:
         """Parse all supported files from a ZIP archive."""
         notebook_files = []
