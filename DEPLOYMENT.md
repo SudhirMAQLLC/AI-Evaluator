@@ -40,6 +40,8 @@ ANTHROPIC_API_KEY = "your_anthropic_api_key_here"
 
 Click "Deploy" and wait for the build to complete.
 
+**Note**: If you encounter Python 3.13 compatibility issues, use `requirements-python313.txt` instead of the default requirements file.
+
 ### 🔧 Local Development
 
 #### Run Locally
@@ -91,7 +93,8 @@ AI-Evaluator/
 2. **API Key Errors**: Verify secrets are correctly set in Streamlit Cloud
 3. **Model Loading**: The app uses lightweight models for fast startup
 4. **Dependency Conflicts**: If you encounter installation errors, try using `requirements-minimal.txt` instead
-5. **Memory Issues**: The app is optimized for Streamlit Cloud's memory constraints
+5. **Python 3.13 Issues**: Use `requirements-python313.txt` for Python 3.13 compatibility
+6. **Memory Issues**: The app is optimized for Streamlit Cloud's memory constraints
 
 #### Debug Mode
 ```bash

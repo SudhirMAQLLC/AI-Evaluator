@@ -1,13 +1,13 @@
 # Core Streamlit dependencies
 streamlit==1.28.1
-pandas==2.1.3
-numpy==1.24.3
+pandas>=2.2.0
+numpy>=1.26.0
 
 # AI and ML libraries (lightweight versions)
-transformers==4.35.2
-torch==2.1.1
-scikit-learn==1.3.2
-sentence-transformers==2.2.2
+transformers>=4.35.0
+torch>=2.1.0
+scikit-learn>=1.3.0
+sentence-transformers>=2.2.0
 
 # API clients
 openai==0.28.1

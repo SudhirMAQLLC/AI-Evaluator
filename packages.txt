@@ -2,3 +2,4 @@ python3-dev
 build-essential
 libmagic1
 libmagic-dev
+pkg-config
