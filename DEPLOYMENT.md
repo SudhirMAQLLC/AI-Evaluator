@@ -51,6 +51,16 @@ pip install -r requirements.txt
 streamlit run streamlit_app.py
 ```
 
+#### Alternative: Use Minimal Requirements
+If you encounter dependency conflicts:
+```bash
+# Install minimal dependencies
+pip install -r requirements-minimal.txt
+
+# Run the app
+streamlit run streamlit_app.py
+```
+
 #### Test the App
 ```bash
 # Test on different port
@@ -80,6 +90,8 @@ AI-Evaluator/
 1. **Import Errors**: Make sure all dependencies are in `requirements.txt`
 2. **API Key Errors**: Verify secrets are correctly set in Streamlit Cloud
 3. **Model Loading**: The app uses lightweight models for fast startup
+4. **Dependency Conflicts**: If you encounter installation errors, try using `requirements-minimal.txt` instead
+5. **Memory Issues**: The app is optimized for Streamlit Cloud's memory constraints
 
 #### Debug Mode
 ```bash

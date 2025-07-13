@@ -29,13 +29,4 @@ pydantic==2.5.0
 pydantic-settings==2.1.0
 
 # File processing (lightweight)
-python-magic==0.4.27
-
-# Additional dependencies for full functionality
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-python-multipart==0.0.6
-redis==5.0.1
-celery==5.3.4
-sqlfluff==3.0.0
-semgrep==1.50.0 
+python-magic==0.4.27 
