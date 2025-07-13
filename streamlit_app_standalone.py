@@ -1,4 +1,3 @@
-# Standalone Streamlit app for AI Code Evaluator
 import streamlit as st
 import requests
 import json
@@ -196,4 +195,4 @@ def api_docs_page():
     """)
 
 if __name__ == "__main__":
-    main()
+    main() 
