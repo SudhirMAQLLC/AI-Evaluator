@@ -1,0 +1,3 @@
+-- SQL Assignment: Retrieve Employees with High Salary
+
+Write a SQL query to select the names and salaries of employees from the 'employees' table who have a salary greater than 50000. Order the results by salary in descending order. 

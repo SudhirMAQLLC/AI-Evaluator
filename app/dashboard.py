@@ -1185,3 +1185,53 @@ def test_api_keys_sync(openai_key: str, google_key: str, grok_key: str):
 
 if __name__ == "__main__":
     main() 
+
+st.title("AI Assignment Evaluator (SQL)")
+
+st.header("Evaluate Student Solution")
+
+# Model selection
+model_options = ["tinyllama", "mistral"]
+selected_model = st.selectbox("Choose Ollama Model", model_options, index=0)
+
+with st.form("assignment_eval_form"):
+    assignment_file = st.file_uploader("Upload Assignment (.txt, .pdf, .docx)", type=["txt", "pdf", "docx"])
+    solution_zip = st.file_uploader("Upload Student Solution (.zip)", type=["zip"])
+    submit = st.form_submit_button("Evaluate")
+
+if submit and assignment_file and solution_zip:
+    with st.spinner(f"Evaluating with {selected_model}..."):
+        files = {
+            "assignment_file": (assignment_file.name, assignment_file, assignment_file.type),
+            "solution_zip": (solution_zip.name, solution_zip, solution_zip.type)
+        }
+        data = {"model": selected_model}
+        try:
+            response = requests.post(
+                "http://localhost:8000/api/v1/assignment-eval/evaluate",
+                files=files,
+                data=data,
+                timeout=180
+            )
+            if response.status_code == 200:
+                result = response.json()
+                # If result is a dict of notebook results, display each
+                if isinstance(result, dict) and all(isinstance(v, dict) for v in result.values()):
+                    st.success("Evaluation Complete!")
+                    for nb_name, eval_result in result.items():
+                        notebook_display = eval_result.get('notebook', nb_name)
+                        score_display = eval_result.get('score', 'N/A')
+                        with st.expander(f"Notebook: {notebook_display}"):
+                            st.markdown(f"### 📝 {notebook_display}")
+                            st.markdown(f"#### ⭐ Score: {score_display} / 10")
+                            st.markdown("**Feedback:**")
+                            st.write(eval_result.get('feedback', 'No feedback.'))
+                else:
+                    st.success("Evaluation Complete!")
+                    st.markdown(f"**Score:** {result.get('score', 'N/A')}")
+                    st.markdown("**Feedback:**")
+                    st.write(result.get('feedback', 'No feedback.'))
+            else:
+                st.error(f"Error: {response.status_code} - {response.text}")
+        except Exception as e:
+            st.error(f"Request failed: {e}") 
