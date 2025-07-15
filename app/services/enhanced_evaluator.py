@@ -630,14 +630,14 @@ class EnhancedEvaluator:
         
         # Security: Comprehensive security vulnerability analysis
         security = self._analyze_security(statement)
-            
-            return {
-                'correctness': max(1.0, min(10.0, correctness)),
-                'efficiency': max(1.0, min(10.0, efficiency)),
-                'best_practices': max(1.0, min(10.0, best_practices)),
-                'readability': max(1.0, min(10.0, readability)),
-                'security': max(1.0, min(10.0, security))
-            }
+        
+        return {
+            'correctness': max(1.0, min(10.0, correctness)),
+            'efficiency': max(1.0, min(10.0, efficiency)),
+            'best_practices': max(1.0, min(10.0, best_practices)),
+            'readability': max(1.0, min(10.0, readability)),
+            'security': max(1.0, min(10.0, security))
+        }
     
     def _analyze_correctness(self, statement: str) -> float:
         """Comprehensive correctness analysis."""
@@ -1158,46 +1158,46 @@ class EnhancedEvaluator:
     
     def _score_single_statement(self, statement: str) -> dict:
         """Score a single SQL statement using rule-based approach."""
-            # Use only rule-based scoring for speed
-            score = 7.0  # Base score
-            
-            # Correctness checks
+        # Use only rule-based scoring for speed
+        score = 7.0  # Base score
+        
+        # Correctness checks
         if 'select' in statement.lower() and 'from' in statement.lower():
-                score += 1.0
+            score += 1.0
         if 'where' in statement.lower():
-                score += 0.5
+            score += 0.5
         if 'order by' in statement.lower():
-                score += 0.5
-            
-            # Efficiency checks
+            score += 0.5
+        
+        # Efficiency checks
         if 'select *' in statement.lower():
-                score -= 2.0
+            score -= 2.0
         if 'limit' in statement.lower():
-                score += 0.5
-            
-            # Best practices
+            score += 0.5
+        
+        # Best practices
         if 'join' in statement.lower():
-                score += 0.5
+            score += 0.5
         if 'group by' in statement.lower():
-                score += 0.5
-            
-            # Security checks
+            score += 0.5
+        
+        # Security checks
         if 'or 1=1' in statement.lower() or 'or true' in statement.lower():
-                score -= 5.0
+            score -= 5.0
         if 'drop table' in statement.lower() or 'truncate' in statement.lower():
-                score -= 3.0
-            
-            # Readability
+            score -= 3.0
+        
+        # Readability
         if statement.count('\n') > 2:
-                score += 0.5
-            
-            return {
-                'correctness': max(1.0, min(10.0, score)),
-                'efficiency': max(1.0, min(10.0, score)),
-                'best_practices': max(1.0, min(10.0, score)),
-                'readability': max(1.0, min(10.0, score)),
-                'security': max(1.0, min(10.0, score))
-            }
+            score += 0.5
+        
+        return {
+            'correctness': max(1.0, min(10.0, score)),
+            'efficiency': max(1.0, min(10.0, score)),
+            'best_practices': max(1.0, min(10.0, score)),
+            'readability': max(1.0, min(10.0, score)),
+            'security': max(1.0, min(10.0, score))
+        }
     def _evaluate_with_codet5(self, code: str) -> dict:
         """Placeholder for CodeT5+ evaluation - returns rule-based scores."""
         # TODO: Implement actual CodeT5+ model evaluation
