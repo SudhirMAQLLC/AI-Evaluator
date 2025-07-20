@@ -1,0 +1,25 @@
+# Core dependencies
+streamlit>=1.28.0
+google-generativeai>=0.3.0
+python-dotenv>=1.0.0
+
+# File processing
+PyPDF2>=3.0.0
+python-docx>=0.8.11
+PyYAML>=6.0
+python-multipart>=0.0.6
+
+# Data processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Utilities
+requests>=2.31.0
+pathlib2>=2.3.7
+
+# Development dependencies (optional)
+pytest>=7.4.0
+pytest-cov>=4.1.0
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.5.0 

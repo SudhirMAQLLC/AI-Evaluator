@@ -1,0 +1,455 @@
+
+You are an expert programming assignment evaluator. Your task is to analyze a student's solution against the assignment brief and provide detailed scoring.
+
+ASSIGNMENT BRIEF:
+Snowflake Assignment  
+ 
+Problem Statement:  
+ 
+Set up a Snowflake environment, ingest data from a CSV file, manage data access using masking and RLS policies, 
+and visualize insights using Power BI. Commit and deploy your work through Git and automate ingestion using 
+Snowflake tasks and pipelines.  
+ 
+Step 1: Snowflake Trial Account Setup  
+ 
+• Go to Snowflake Trial . 
+• Sign up with your company email.  
+• Choose Microsoft Azure  as your cloud provider .  
+• Choose Enterprise Edition . 
+• Wait for the account creation email and follow the link to log in.  
+ 
+Step 2: Environment Setup in Snowflake  
+1. Log into Snowflake web UI.  
+2. Open the Worksheet  tab. 
+3. Use the role SYSADMIN either using “use role SYSADMIN” or by selecting the SYSADMIN role from bottom 
+left pane of settings tab.  
+4. Create a schema SNOWFLAKE_EMPXXXXX (Your employee id) and use that schema.  
+ 
+Sample SQL:  
+ 
+USE ROLE SYSADMIN;  
+CREATE SCHEMA IF NOT EXISTS SNOWFLAKE_EMP XXXXX ; 
+USE SCHEMA SNOWFLAKE_EMP XXXXX ; 
+ 
+ 
+Step 4: Creating a warehouse  
+Create a warehouse WH_EMPID  (Your employee id)  with properties (size: small, auto_suspend: 60, 
+auto_resume: true, initia lly_suspended = true) and use that warehouse  
+ 
+Sample SQL:  
+ 
+CREATE WAREHOUSE IF NOT EXISTS WH_EMP02304  
+WAREHOUSE_SIZE = 'SMALL'  
+AUTO_SUSPEND = 60  
+AUTO_RESUME = TRUE  
+INITIALLY_SUSPENDED = TRUE;  
+USE WAREHOUSE WH_EMP02304;  
+
+ 
+Step 5: Create transactions table  
+ 
+Create a table named as transaction s which will have the transaction data stored for your business.  
+ 
+Column information:  
+ 
+transaction _id (INT), customer _name (String), customer_phone (String), transaction _date(date), 
+transaction _amount (float), transaction _status(String).  
+ 
+Note:  
+transaction_id will be the primary key with autoincrement  enabled . 
+ 
+Sample SQL:  
+ 
+CREATE OR REPLACE TABLE transactions (  
+transaction_id INT AUTOINCREMENT,  
+customer_name STRING,  
+customer_phone STRING,  
+transaction_date DATE,  
+transaction_amount FLOAT,  
+transaction_status STRING,  
+PRIMARY KEY (transaction_id)  
+); 
+ 
+Submit screenshot of the created table by running the following command : 
+ 
+describe table SNOWFLAKE_EMPXXXXX.WH_EMPXXXXX.transactions  
+  
+ 
+Step 6: Apply Masking Policy to customer_phone  
+ 
+Create a masking policy  (customer_phone_mask) to mask the phone number of the customer if the current role 
+is “ANAL YST_ROLE” . No masking is required for SYSADMIN.  
+ 
+Note:  
+ 
+The masking policy will return a 12 letter string ‘XXX -XXXX -XXX’ if the current role is ‘ANAL YST_ROLE’. 
+Alter/Update the existing transactions table to add masking policy to the column customer_phone_mask.  
+ 
+Sample SQL:  
+ 
+CREATE OR REPLACE MASKING POLICY customer_phone_mask AS (val STRING) RETURNS STRING -> 
+CASE  
+WHEN CURRENT_ROLE() IN ('ANALYST_ROLE') THEN 'XXX -XXX-XXXX'  
+ELSE val  
+END;  
+ALTER TABLE transactions  
+ALTER COLUMN customer_phone  
+SET MASKING POLICY customer_phone_mask;  
+ 
+ 
+Step 7: Upload Data via CSV File  
+ 
+Download the sample CSV file: transactions_dump.csv  
+Upload it to Snowflake via Snowsight UI  → Databases → Click your schema → Tables  → Click transactions → Load 
+Data → Upload transactions.csv.  
+Choose the delimiter as comma , and skip header row if needed  
+ 
+Note:  
+Upload a screenshot of the results by executing the following SQL code:  
+ 
+Select * from SNOWFLAKE_EMPXXXXX.WH_EMPXXXXX.transactions limit 10;  
+ 
+ 
+Step 8: Add a Calculated Column for Transaction Category  
+ 
+Create a calculated column transaction_category. The transaction category will have following values: 1) High 
+Value 2) Medium Value 3) Low Value  
+ 
+The conditions are:  
+High -> IF transaction_amount > 200  
+Medium -> IF transaction_amount >= 100 and <= 200  
+Low -> IF transaction_amount <100  
+ 
+ 
+Sample SQL:  
+SELECT  
+transaction_id,  
+customer_name,  
+transaction_date,  
+transaction_amount,  
+CASE  
+WHEN transaction_amount > 200 THEN 'High Value'  
+WHEN transaction_amount BETWEEN 100 AND 200 THEN 'Medium Value'  
+ELSE 'Low Value'  
+END AS transaction_category,  
+transaction_status  
+
+FROM transactions;  
+ 
+ 
+Note:  
+Upload a screenshot of the results by executing the following SQL code:  
+ 
+Select * from SNOWFLAKE_EMPXXXXX.WH_EMPXXXXX.transactions limit 10;  
+ 
+ 
+Step 9: Load Data into Power BI  
+ 
+Data ingestion in Power BI  using Full Refresh : Add transactions table in Power BI using snowflake connection and 
+bring only rows having transaction_status as completed. Avoid transformations outside table and apply query 
+level transformations.  
+ 
+Sample Query:  
+ 
+SELECT  
+transaction_id,  
+customer_name,  
+transaction_date,  
+transaction_amount,  
+CASE  
+WHEN transaction_amount > 200 THEN 'High Value'  
+WHEN transaction_amount BETWEEN 100 AND 200 THEN 'Medium Value'  
+ELSE 'Low Value'  
+END AS transaction_category,  
+transaction_status  
+FROM SNOWFLAKE_ EMPXXXXX .transactions  
+WHERE transaction_status = 'Completed';  
+ 
+ 
+Data Ingestion in Power BI using Incremental Refresh:  
+ 
+Steps:  
+1. In PBI, go to manage parameters -> create -> 1. RangeStart  (DateTime)  2. RangeEnd  (DateTime)  
+2. Use below SQL:  
+ 
+SELECT  
+transaction_id,  
+customer_name,  
+transaction_date,  
+transaction_amount,  
+CASE  
+WHEN transaction_amount > 200 THEN 'High Value'  
+WHEN transaction_amount BETWEEN 100 AND 200 THEN 'Medium Value'  
+ELSE 'Low Value'  
+END AS transaction_category,  
+transaction_status  
+FROM SNOWFLAKE_ EMPXXXXX .transactions  
+ 
+WHERE transaction_date >= CAST(@RangeStart AS DATE)  
+AND transaction_date < CAST(@RangeEnd AS DATE)  
+AND transaction_status = 'Completed';  
+3. Go to Model View -> Right click on transactions table -> Enable Incremental Refresh  
+4. Set Store  period =  2 Years  
+5. Refresh period =  5 days  
+ 
+ 
+Step 10: Create Visuals in Power BI  
+ 
+Example: Bar chart: transaction_date on X -axis, transaction_amount on Y -axis 
+ 
+Note: Upload screenshot of the visual showing transaction_date and transaction_amount details.  
+ 
+ 
+ 
+Step 11: Stage Table and Automation via Tasks  
+Create a new table stg_transactions having same metadata as transactions table with an additional 
+ingestion_flag column. This flag will be used to determine if the ingestion has been completed or not. Set the 
+value to BOOLEAN having default value as FALSE.  
+ 
+ 
+CREATE OR REPLACE TABLE stg_transactions (  
+ customer_name STRING,  
+ customer_phone STRING,  
+ transaction_date DATE,  
+ transaction_amount FLOAT,  
+ transaction_status STRING,  
+ ingestion_flag BOOLEAN DEFAULT FALSE  
+); 
+ 
+ 
+Insert Data:  
+ 
+Insert values using below SQL into stg_transactions:  
+ 
+ 
+INSERT INTO stg_transactions (customer_name, customer_phone, transaction_date, transaction_amount, 
+transaction_status, ingestion_flag)  
+VALUES  
+('John Doe', '555 -555-6666', '2025 -09-04', 76.46, 'Pending', FALSE);  
+ 
+ 
+Note:  
+Upload screenshot s using a “.zip” file  of the results by executing the following SQL code:  
+ 
+1. describe table SNOWFLAKE_EMPXXXXX.WH_EMPXXXXX. stg_ transactions  
+2. Select * from SNOWFLAKE_EMPXXXXX.WH_EMPXXXXX. stg_transactions limit 10;  
+ 
+ 
+Create Stored Procedure and Task  
+ 
+Create a task  (task_ingest)  that will run on hourly basis to update transactions table. This task will inject data 
+from stg_transactions to transactions table in case s where the ingestion_flag is set to false. Once the data is 
+ingested, change the flag value to true.  Note: You can create a stored procedure  (sp_ingest_data) . The task can 
+be used to call the stored_procedure  
+Sample SQL:  
+ 
+CREATE OR REPLACE PROCEDURE sp_ingest_data()  
+RETURNS STRING  
+LANGUAGE SQL  
+AS 
+$$ 
+BEGIN  
+INSERT INTO transactions (customer_name, customer_phone, transaction_date, transaction_amount, 
+transaction_status)  
+SELECT customer_name, customer_phone, transaction_date, transaction_amount, transaction_status  
+FROM stg_transactions  
+WHERE ingestion_flag = FALSE;  
+UPDATE stg_transactions SET ingestion_flag = TRUE WHERE ingestion_flag = FALSE;  
+RETURN 'SUCCESS';  
+END;  
+$$; 
+ 
+CREATE OR REPLACE TASK task_ingest  
+WAREHOUSE = WH_EMP02304  
+SCHEDULE = '1 HOUR'  
+AS 
+CALL sp_ingest_data();  
+ 
+Resume the task:  
+ALTER TASK task_ingest RESUME;  
+ 
+ 
+Step 12 : Enable RLS in Snowflake and Power BI  
+ 
+Enable RLS in snowflake.  
+To enable RLS, create a role, ANAL YST_EAST and grant usage  to that role . Create a new column region(String) 
+under transactions table using “Alter” . Update the values where customer_name is  Alice Johnson  then region 
+would be “EAST” . Finally, create a new secure view on top of transactions table and grant select/view access to 
+the newly created role (ANAL YST_EAST)  
+ 
+Sample SQL:  
+ 
+CREATE ROLE ANALYST_EAST;  
+GRANT USAGE ON DATABASE <WH_EMP02304 > TO ROLE ANALYST_EAST;  
+ 
+ALTER TABLE transactions ADD COLUMN region STRING;  
+ 
+UPDATE transactions SET region = 'EAST' WHERE customer_name IN ('Alice Johnson');  
+ 
+ 
+CREATE OR REPLACE SECURE VIEW vw_transactions AS  
+SELECT *  
+FROM transactions  
+WHERE region = 'EAST'  
+ 
+ 
+GRANT SELECT ON VIEW vw_transactions TO ROLE ANALYST_EAST;  
+ 
+ 
+ 
+Enable RLS i n Power BI:  
+ 
+• Manage Roles  → Create Role → Use DAX filter: [region] = "EAST"  
+• View as Role to test it.  
+ 
+Upload a screenshot of the visual using “View as role”.  
+ 
+ 
+Step 13: Git Commit and CI/CD Setup  
+• Commit .sql files and Power BI .pbip file to Git  
+• Branch naming convention: snowflake/<empid>  
+• Use GitHub Actions / Azure DevOps to deploy SQL scripts to Snowflake using CLI (snowsql).  
+ 
+Note: Mention your branch link along with screenshot of successful pipeline run.  
+ 
+Step 14: Monitor Query Costs  
+ 
+Monitor the cost for the queries  using below queries : 
+ 
+Sample SQL:  
+ 
+SELECT  
+query_text,  
+execution_status,  
+start_time,  
+total_elapsed_time,  
+bytes_scanned,  
+rows_produced,  
+warehouse_name  
+FROM SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY  
+WHERE query_text ILIKE '%transactions%'  
+AND start_time > DATEADD('day', -1, CURRENT_TIMESTAMP())  
+ORDER BY start_time DESC;  
+ 
+Note: If SNOWFLAKE.ACCOUNT_USAGE.QUERY_HISTORY has access issues, use 
+INFORMATION_SCHEMA.QUERY_HISTORY  
+ 
+Upload a screenshot of the results showing query costs.  
+
+
+STUDENT SOLUTION FILES:
+=== FILE: solution_correct.ipynb ===
+{
+  "cells": [
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "# Correct solution sample\n",
+        "import snowflake.connector\n",
+        "ctx = snowflake.connector.connect(...)\n",
+        "# Creating schema, warehouse, table\n",
+        "# Inserting data, masking, RLS, Power BI queries etc.\n",
+        "print(\"All steps completed correctly\")"
+      ]
+    }
+  ],
+  "metadata": {},
+  "nbformat": 4,
+  "nbformat_minor": 5
+}
+
+=== FILE: solution_incorrect.ipynb ===
+{
+  "cells": [
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "# Incorrect solution sample\n",
+        "print(\"No warehouse or table creation\")"
+      ]
+    }
+  ],
+  "metadata": {},
+  "nbformat": 4,
+  "nbformat_minor": 5
+}
+
+=== FILE: solution_mixed.ipynb ===
+{
+  "cells": [
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "# Mixed solution sample\n",
+        "import snowflake.connector\n",
+        "# Created warehouse but forgot masking policy\n",
+        "print(\"Some steps done, some missing\")"
+      ]
+    }
+  ],
+  "metadata": {},
+  "nbformat": 4,
+  "nbformat_minor": 5
+}
+
+Please evaluate the student's solution and provide a detailed assessment in the following JSON format:
+
+{
+    "overall_score": 85,
+    "max_score": 100,
+    "evaluation_summary": "The student demonstrated good understanding of the core concepts...",
+    "detailed_feedback": {
+        "correctness": {
+            "score": 20,
+            "max_score": 25,
+            "feedback": "The code correctly implements the required functionality..."
+        },
+        "code_quality": {
+            "score": 15,
+            "max_score": 20,
+            "feedback": "The code is well-structured and readable..."
+        },
+        "documentation": {
+            "score": 8,
+            "max_score": 10,
+            "feedback": "Comments are present but could be more detailed..."
+        },
+        "testing": {
+            "score": 12,
+            "max_score": 15,
+            "feedback": "Basic tests are included..."
+        },
+        "creativity": {
+            "score": 10,
+            "max_score": 15,
+            "feedback": "The solution shows some creative approaches..."
+        },
+        "efficiency": {
+            "score": 20,
+            "max_score": 25,
+            "feedback": "The algorithm is reasonably efficient..."
+        }
+    },
+    "strengths": [
+        "Good understanding of core concepts",
+        "Clean code structure",
+        "Proper error handling"
+    ],
+    "areas_for_improvement": [
+        "Add more comprehensive documentation",
+        "Include edge case testing",
+        "Consider performance optimizations"
+    ],
+    "recommendations": "Focus on improving documentation and testing coverage for better maintainability."
+}
+
+IMPORTANT: Respond ONLY with valid JSON. Do not include any additional text or explanations outside the JSON structure.

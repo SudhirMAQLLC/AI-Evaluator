@@ -1,0 +1,84 @@
+title: "Snowflake Data Engineering Assignment"
+description: "Set up a Snowflake environment, ingest data from CSV files, manage data access using masking and RLS policies, and visualize insights using Power BI."
+type: "snowflake"
+requirements:
+  - "Create Snowflake trial account"
+  - "Set up environment with warehouse and schema"
+  - "Create transactions table with proper structure"
+  - "Apply masking policy to customer_phone"
+  - "Upload data via CSV file"
+  - "Add calculated column for transaction category"
+  - "Load data into Power BI"
+  - "Create visuals in Power BI"
+  - "Create stage table and automation via tasks"
+  - "Enable RLS in Snowflake and Power BI"
+  - "Commit and deploy work through Git"
+  - "Monitor query costs"
+
+expected_outputs:
+  - "Snowflake warehouse created"
+  - "Schema SNOWFLAKE_EMPXXXXX created"
+  - "Transactions table with proper columns"
+  - "Masking policy applied to customer_phone"
+  - "Data loaded from CSV"
+  - "Transaction category calculated"
+  - "Power BI dashboard created"
+  - "Stage table with ingestion flag"
+  - "Stored procedure and task created"
+  - "RLS policies implemented"
+  - "Git repository with committed code"
+  - "Query cost monitoring setup"
+
+scoring_criteria:
+  correctness: 40
+  best_practices: 25
+  documentation: 15
+  automation: 20
+
+file_types:
+  - ".ipynb"
+  - ".sql"
+  - ".csv"
+  - ".pbix"
+  - ".md"
+
+specific_tests:
+  - name: "warehouse_creation"
+    type: "sql"
+    pattern: "CREATE\\s+WAREHOUSE"
+    points: 10
+    
+  - name: "schema_creation"
+    type: "sql"
+    pattern: "CREATE\\s+SCHEMA"
+    points: 10
+    
+  - name: "table_creation"
+    type: "sql"
+    pattern: "CREATE\\s+TABLE\\s+transactions"
+    points: 15
+    
+  - name: "masking_policy"
+    type: "sql"
+    pattern: "CREATE\\s+MASKING\\s+POLICY"
+    points: 15
+    
+  - name: "task_creation"
+    type: "sql"
+    pattern: "CREATE\\s+TASK"
+    points: 10
+    
+  - name: "stored_procedure"
+    type: "sql"
+    pattern: "CREATE\\s+PROCEDURE"
+    points: 10
+    
+  - name: "rls_policy"
+    type: "sql"
+    pattern: "CREATE\\s+ROW\\s+ACCESS\\s+POLICY"
+    points: 10
+    
+  - name: "powerbi_visualization"
+    type: "file"
+    extension: ".pbix"
+    points: 10 

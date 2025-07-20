@@ -1,0 +1,42 @@
+{
+  "title": "Snowflake Data Engineering Assignment",
+  "description": "Set up a Snowflake environment, ingest data from CSV files, and implement data access controls using masking and row-level security policies.",
+  "requirements": [
+    "Create a Snowflake warehouse for data processing",
+    "Create a database and schema for the project",
+    "Create a table to store transaction data",
+    "Load sample transaction data from CSV files",
+    "Apply column-level masking policies for sensitive data",
+    "Create row-level security policies for data access control",
+    "Create a stored procedure for data validation",
+    "Set up automated tasks for data processing"
+  ],
+  "expected_outputs": [
+    "Warehouse created and configured",
+    "Database and schema structure established",
+    "Transaction table with proper data types",
+    "Data successfully loaded from CSV files",
+    "Masking policies applied to sensitive columns",
+    "RLS policies implemented for access control",
+    "Stored procedure for data validation",
+    "Automated task configured and running"
+  ],
+  "scoring_criteria": {
+    "code_implementation": {
+      "weight": 30,
+      "description": "Functionality and correctness of implementation"
+    },
+    "code_quality": {
+      "weight": 25,
+      "description": "Code structure, best practices, and error handling"
+    },
+    "documentation": {
+      "weight": 20,
+      "description": "Code comments, markdown cells, and explanations"
+    },
+    "problem_solving": {
+      "weight": 25,
+      "description": "How well the solution addresses the requirements"
+    }
+  }
+} 
